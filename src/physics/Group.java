@@ -1,3 +1,5 @@
+package physics;
+
 import javafx.beans.property.*;
 import javafx.scene.paint.Color;
 

@@ -1,4 +1,8 @@
+package controlles;
+
 import javafx.animation.AnimationTimer;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.collections.FXCollections;
@@ -6,42 +10,74 @@ import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
+import javafx.scene.Cursor;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.*;
+import javafx.scene.input.MouseButton;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.paint.Color;
+import javafx.stage.FileChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.util.Duration;
+import physics.*;
+import utils.Dialogs;
+import utils.SimulationSnapshot;
 
-import java.io.IOException;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class SimulationController {
     @FXML private BorderPane borderPane;
     @FXML private Canvas canvas;
     @FXML private MenuItem runToggle;
+    @FXML private MenuItem saveMenuItem;
+    @FXML private MenuItem loadMenuItem;
+    @FXML private MenuItem updateMenuItem;
     @FXML private Menu exitMenuButton;
     @FXML private MenuBar menuBar;
     @FXML private CheckMenuItem gravityToggle;
     @FXML private CheckMenuItem reflectionToggle;
     @FXML private CheckMenuItem highPrecisionToggle;
     @FXML private CheckMenuItem statsToggle;
+
     @FXML private Menu ballsMenu;
+    @FXML private Label statusLabel;
+    @FXML private HBox bottomBox;
 
     final public static double INITIAL_WIDTH = 800.0;
     final public static double INITIAL_HEIGHT = 600.0;
+    // Целевая частота физики
+    private static final double PHYSICS_HZ = 60.0;
+    private static final long PHYSICS_PERIOD_NANOS = (long)(1e9 / PHYSICS_HZ);
+
+    // --- Состояние ---
+    private Thread physicsThread;
+    private volatile boolean physicsRunning = false;
+    private volatile SimulationPhysics currentPhysics;
+    private boolean pendingStart = false;
+    private Timeline phasePollTimeline;
+    private final ReentrantLock stateLock = new ReentrantLock();
+
+    // Текущая позиция камеры (левый верхний угол видимой области)
+    private double camX = 0;
+    private double camY = 0;
+
+    // Начало drag — запоминаем, чтобы считать дельту
+    private double dragStartMouseX, dragStartMouseY;
+    private double dragStartCamX, dragStartCamY;
 
     private GraphicsContext gc;
     private ObservableList<Group> groups = FXCollections.observableArrayList();
     private List<Ball> balls = new ArrayList<>();
-    private AnimationTimer timer;
-    private boolean running = false;
     private Stage primaryStage;
 
     private final SimulationStats stats = new SimulationStats();
@@ -70,36 +106,78 @@ public class SimulationController {
         canvas.widthProperty().bind(borderPane.widthProperty());
         canvas.heightProperty().bind(
                 Bindings.createDoubleBinding(
-                        () -> borderPane.getHeight() - menuBar.getHeight(),
+                        () -> borderPane.getHeight() - menuBar.getHeight() - bottomBox.getHeight(),
                         borderPane.heightProperty(),
-                        menuBar.heightProperty()
+                        menuBar.heightProperty(),
+                        bottomBox.heightProperty()
                 )
         );
+
+        canvas.widthProperty().addListener((o, ov, nv) -> render());
+        canvas.heightProperty().addListener((o, ov, nv) -> render());
+
         // начальные группы (можно добавить одну)
         groups.add(new Group(10000, 3.0, 1.0, Color.BLUE));
 //        groups.add(new Group(1, 30.0, 1000.0, Color.RED));
         updateBallsFromGroups();
 
         // инициализация таймера
-        timer = new AnimationTimer() {
+        // 1. Рендер — только если удалось взять блокировку
+        // 2. Обновление статистики — тоже в UI-потоке, тоже под tryLock
+        // ← здесь всё как раньше
+        AnimationTimer timer = new AnimationTimer() {
             @Override
             public void handle(long now) {
-                if (running) {
-                    updatePhysics(1.0/60.0);
-                    render();
+                // 1. Рендер — только если удалось взять блокировку
+                render();
 
-                    if (statsToggle.isSelected() && ++statsController.statsFrameCounter % statsController.STATS_UPDATE_EVERY == 0) {
-                        statsController.update(stats);
-                    }
+                // 2. Обновление статистики — тоже в UI-потоке, тоже под tryLock
+                if (statsToggle.isSelected()
+                        && ++statsController.statsFrameCounter % statsController.STATS_UPDATE_EVERY == 0) {
+                    statsController.update(stats);   // ← здесь всё как раньше
                 }
             }
         };
+        timer.start();
 
         // Подписываемся на изменения списка
         groups.addListener((ListChangeListener<Group>) change -> rebuildBallsMenu());
         rebuildBallsMenu();
 
         initStatsWindow();
+
+        // Отслеживание таскания экрана.
+        initDragFeature();
+    }
+
+    private void initDragFeature() {
+        canvas.setOnMousePressed(e -> {
+            if (e.getButton() == MouseButton.PRIMARY) {
+                dragStartMouseX = e.getX();
+                dragStartMouseY = e.getY();
+                dragStartCamX = camX;
+                dragStartCamY = camY;
+                canvas.setCursor(Cursor.CLOSED_HAND);
+            }
+        });
+
+        canvas.setOnMouseDragged(e -> {
+            if (e.getButton() == MouseButton.PRIMARY) {
+                double dx = e.getX() - dragStartMouseX;
+                double dy = e.getY() - dragStartMouseY;
+                // Мышь вправо → мир «едет» вправо → камера уходит влево
+                camX = dragStartCamX - dx;
+                camY = dragStartCamY - dy;
+                // render() вызовется из AnimationTimer, специально ничего не делаем
+            }
+        });
+
+        canvas.setOnMouseReleased(e -> {
+            canvas.setCursor(Cursor.DEFAULT);
+        });
+
+        // Курсор-«рука» при наведении — намёк, что можно таскать
+        canvas.setCursor(Cursor.OPEN_HAND);
     }
 
     private void initStatsWindow() {
@@ -197,7 +275,7 @@ public class SimulationController {
     private void regenerateBalls() {
         balls.clear();
         double width = canvas.getWidth() > 0 ? canvas.getWidth() : INITIAL_WIDTH;
-        double height = canvas.getHeight() > 0 ? canvas.getHeight(): INITIAL_WIDTH;
+        double height = canvas.getHeight() > 0 ? canvas.getHeight(): INITIAL_HEIGHT;
         // для каждой группы создаём нужное количество шариков со случайными позициями
         for (Group g : groups) {
             for (int i = 0; i < g.getCount(); i++) {
@@ -208,42 +286,185 @@ public class SimulationController {
 
     private void updatePhysics(double dt) {
         var physics = new SimulationPhysics(balls, stats);
+
+        // Настройки.
         physics.isHighPrecision = highPrecisionToggle.isSelected();
         physics.isGravityEnabled = gravityToggle.isSelected();
         physics.isReflectionEnabled = reflectionToggle.isSelected();
-        physics.isStatsEnabled = reflectionToggle.isSelected();
+        physics.isStatsEnabled = statsToggle.isSelected();
 
         physics.boxHeight = canvas.getHeight();
         physics.boxWidth = canvas.getWidth();
 
-        physics.doCalc(dt);
+        currentPhysics = physics;
+        try {
+            physics.doCalc(dt);
+        } finally {
+            currentPhysics = null;
+        }
     }
 
     private void render() {
         gc.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
         for (Ball b : balls) {
             gc.setFill(b.getColor());
-            double radius = b.radius;
-            gc.fillOval(b.x - radius, b.y - radius,
-                    2 * radius, 2 * radius);
+            double sx = b.x - camX;
+            double sy = b.y - camY;
+            double r = b.radius;
+
+            if (sx + r < 0 || sx - r > canvas.getWidth()) continue;
+            if (sy + r < 0 || sy - r > canvas.getHeight()) continue;
+
+            gc.fillOval(sx - r,sy - r,2 * r, 2 * r);
         }
     }
 
     @FXML private void updateBallsFromGroups() {
         regenerateBalls();
-        updatePhysics( 1 / 120);
+        // Пересчитаем, чтобы разлепить шары.
+        updatePhysics( 1 / 1000);
         render();
     }
 
     @FXML private void toggleRun() {
-        if (running) {
-            timer.stop();
-            runToggle.setText("Пуск");
-        } else {
-            timer.start();
-            runToggle.setText("Стоп");
+        if (physicsRunning || pendingStart)
+            stopSimulation();
+        else
+            startSimulation();
+    }
+
+
+    private void startSimulation() {
+        if (physicsRunning) return;
+
+        // На случай, если предыдущая остановка ещё не завершилась
+        // (пользователь быстро нажал Стоп → Запуск)
+        if (physicsThread != null && physicsThread.isAlive()) {
+            statusLabel.setText("Жду завершения предыдущей сессии…");
+            // Запустим после того, как предыдущая остановится
+            pendingStart = true;
+            return;
         }
-        running = !running;
+
+        physicsRunning = true;
+        runToggle.setText("Стоп");
+
+        // Сброс фазы — чтобы UI не показывал старую
+        stats.currentPhase = Phase.IDLE;
+
+        // Блокируем меню сразу — это безопасно и ожидаемо
+        saveMenuItem.setDisable(true);
+        loadMenuItem.setDisable(true);
+        updateMenuItem.setDisable(true);
+        ballsMenu.setDisable(true);
+        statusLabel.setText("Работает");
+
+        // Создаём поток
+        physicsThread = new Thread(this::physicsLoop, "physics");
+        physicsThread.setDaemon(true);
+        physicsThread.start();
+
+        // Обновление статуса фазы во время работы — опционально
+        startPhasePolling();
+    }
+
+    // --- Остановка ---
+    private void stopSimulation() {
+
+        if (pendingStart) {
+            // Отменяем отложенный запуск
+            pendingStart = false;
+            statusLabel.setText("Остановлено");
+            return;
+        }
+        if (!physicsRunning) return;
+
+        physicsRunning = false;
+
+        SimulationPhysics p = currentPhysics;
+        if (p != null) p.cancel();
+
+        statusLabel.setText("Останавливаю…");
+        waitForPhysicsStopAsync();
+        startPhasePolling();
+    }
+
+    // --- Асинхронное ожидание ---
+    private void waitForPhysicsStopAsync() {
+        Thread waiter = new Thread(() -> {
+            try {
+                if (physicsThread != null) physicsThread.join(2000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            Platform.runLater(this::onPhysicsStopped);
+        }, "physics-waiter");
+        waiter.setDaemon(true);
+        waiter.start();
+    }
+
+    // --- Обработка завершения ---
+    private void onPhysicsStopped() {
+        if (phasePollTimeline != null) phasePollTimeline.stop();
+
+        saveMenuItem.setDisable(false);
+        loadMenuItem.setDisable(false);
+        updateMenuItem.setDisable(false);
+        ballsMenu.setDisable(false);
+        runToggle.setText("Пуск");
+
+        if (pendingStart) {
+            pendingStart = false;
+            Platform.runLater(this::startSimulation);
+        } else {
+            statusLabel.setText("Остановлено");
+        }
+    }
+
+    // --- Опрос фазы ---
+    private void startPhasePolling() {
+        if (phasePollTimeline != null) phasePollTimeline.stop();
+
+        phasePollTimeline = new Timeline(new KeyFrame(Duration.millis(50), e -> {
+            if (physicsRunning) {
+                statusLabel.setText("Работает · " + stats.currentPhase.title);
+            } else if (physicsThread != null && physicsThread.isAlive()) {
+                statusLabel.setText("Останавливаю… " + stats.currentPhase.title);
+            } else {
+                phasePollTimeline.stop();
+            }
+        }));
+        phasePollTimeline.setCycleCount(Timeline.INDEFINITE);
+        phasePollTimeline.play();
+    }
+
+    // --- Физический цикл ---
+    private void physicsLoop() {
+        long lastTime = System.nanoTime();
+
+        while (physicsRunning) {
+            long frameStart = System.nanoTime();
+            double dt = Math.min((frameStart - lastTime) / 1e9, 0.05);
+            lastTime = frameStart;
+
+            stateLock.lock();
+            try {
+                updatePhysics(dt);
+            } finally {
+                stateLock.unlock();
+            }
+
+            long elapsed = System.nanoTime() - frameStart;
+            long sleep = PHYSICS_PERIOD_NANOS - elapsed;
+            if (sleep > 1_000_000) {
+                try {
+                    Thread.sleep(sleep / 1_000_000, (int)(sleep % 1_000_000));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }
     }
 
     @FXML private void toggleGravity() {
@@ -270,5 +491,130 @@ public class SimulationController {
 
     public void onClose() {
         statsStage.close();
+    }
+
+    private File lastSaveDir;
+
+    @FXML
+    private void save() {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Сохранить симуляцию");
+        chooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("Симуляция (*.bs)", "*.bs"));
+        chooser.setInitialFileName("simulation.bs");
+
+        // Стартовая директория — где сохраняли в прошлый раз
+        if (lastSaveDir != null) chooser.setInitialDirectory(lastSaveDir);
+
+        File file = chooser.showSaveDialog(primaryStage);
+        if (file == null) return; // пользователь отменил
+
+        // Если пользователь не дописал расширение — добавим
+        if (!file.getName().toLowerCase().endsWith(".bs")) {
+            file = new File(file.getParentFile(), file.getName() + ".bs");
+        }
+
+        lastSaveDir = file.getParentFile();
+
+        var s = SimulationSnapshot.toSnapshot(balls, groups);
+        s.isGravityEnabled = gravityToggle.isSelected();
+        s.isHighPrecision= highPrecisionToggle.isSelected();
+        s.isReflectionEnabled = reflectionToggle.isSelected();
+        s.isStatsEnabled = statsToggle.isSelected();
+        s.boxWidth = canvas.getWidth();
+        s.boxHeight = canvas.getHeight();
+        s.camX = camX;
+        s.camY = camY;
+
+        try (ObjectOutputStream out =
+                     new ObjectOutputStream(new BufferedOutputStream(
+                             new FileOutputStream(file)))) {
+
+            out.writeObject(s);
+            // Status bar / диалог об успехе
+            Dialogs.info(primaryStage, "Сохранено", "Файл сохранён: " + file.getName());
+        } catch (IOException e) {
+            e.printStackTrace();
+            Dialogs.error(primaryStage, "Ошибка сохранения", e.getMessage());
+        }
+    }
+
+    @FXML
+    private void load() {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Загрузить симуляцию");
+        chooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("Симуляция (*.bs)", "*.bs"));
+        if (lastSaveDir != null) chooser.setInitialDirectory(lastSaveDir);
+
+        File file = chooser.showOpenDialog(primaryStage);
+        if (file == null) return;
+        lastSaveDir = file.getParentFile();
+
+        // Фильтр: разрешаем только наши классы и стандартные коллекции
+        ObjectInputFilter loggingFilter = info -> {
+            Class<?> clazz = info.serialClass();
+            if (clazz != null) {
+                System.out.println("[filter] " + clazz.getName());
+            }
+            return ObjectInputFilter.Status.UNDECIDED; // ничего не решаем, пропускаем дальше
+        };
+
+        ObjectInputFilter filter = ObjectInputFilter.Config.createFilter(
+                "utils.*;java.util.*;java.lang.*;!*"
+        );
+
+        ObjectInputFilter combined = ObjectInputFilter.merge(
+                loggingFilter, filter
+        );
+
+        try (ObjectInputStream in =
+                     new ObjectInputStream(new BufferedInputStream(
+                             new FileInputStream(file)))) {
+            in.setObjectInputFilter(combined);
+
+            Object obj = in.readObject();
+            if (!(obj instanceof SimulationSnapshot snapshot)) {
+                Dialogs.error(primaryStage, "Ошибка", "Неверный формат файла");
+                return;
+            }
+            applySnapshot(snapshot);
+            Dialogs.info(primaryStage, "Загружено", "Файл загружен: " + file.getName());
+        } catch (IOException | ClassNotFoundException e) {
+            e.printStackTrace();
+            Dialogs.error(primaryStage, "Ошибка загрузки", e.getMessage());
+        }
+    }
+
+    private void applySnapshot(SimulationSnapshot s) {
+        // Восстанавливаем группы
+        groups.clear();
+        for (SimulationSnapshot.GroupData d : s.groups) {
+            Group g = new Group(d.name, d.count, d.radius, d.mass, SimulationSnapshot.fromArgb(d.colorArgb));
+            groups.add(g);
+        }
+
+        // Восстанавливаем шары в точности
+        balls.clear();
+        for (SimulationSnapshot.BallData d : s.balls) {
+            Ball b = new Ball(d.x, d.y, d.vx, d.vy, d.radius, d.mass, SimulationSnapshot.fromArgb(d.colorArgb));
+            balls.add(b);
+        }
+
+        // Настройки
+        gravityToggle.setSelected(s.isGravityEnabled);
+        highPrecisionToggle.setSelected(s.isHighPrecision);
+        reflectionToggle.setSelected(s.isReflectionEnabled);
+        statsToggle.setSelected(s.isStatsEnabled);
+        toggleStats();
+
+        var stage = borderPane.getScene().getWindow();
+        stage.setWidth(s.boxWidth);
+        stage.setHeight(s.boxHeight + menuBar.getHeight() + bottomBox.getHeight());
+
+        camX = s.camX;
+        camY = s.camY;
+
+        render();
     }
 }

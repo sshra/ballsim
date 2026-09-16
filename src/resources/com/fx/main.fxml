@@ -1,14 +1,45 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import java.lang.*?>
-<?import java.util.*?>
-<?import javafx.scene.*?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
+<?import javafx.scene.canvas.Canvas?>
 
-<AnchorPane xmlns="http://javafx.com/javafx"
+<BorderPane fx:controller="controlles.SimulationController"
+            fx:id="borderPane"
             xmlns:fx="http://javafx.com/fxml"
-            fx:controller="$CONTROLLER_NAME$"
-            prefHeight="400.0" prefWidth="600.0" >
+            xmlns="http://javafx.com/javafx"
+            stylesheets="/resources/style.css">
+        <top >
+            <MenuBar fx:id="menuBar">
+                <Menu text="Симуляция">
+                    <MenuItem text="Запуск" fx:id="runToggle" onAction="#toggleRun"/>
+                    <MenuItem text="Обновить" fx:id="updateMenuItem" onAction="#updateBallsFromGroups"/>
+                    <CheckMenuItem text="Высокая точность" fx:id="highPrecisionToggle"/>
+                    <CheckMenuItem text="Гравитация" fx:id="gravityToggle" onAction="#toggleGravity"/>
+                    <CheckMenuItem text="Отражение от стенок" fx:id="reflectionToggle" onAction="#toggleReflection" selected="true"/>
+                    <CheckMenuItem text="Показывать статистику"
+                                   fx:id="statsToggle"
+                                   onAction="#toggleStats"/>
+                </Menu>
+                <Menu text="Файл">
+                    <MenuItem text="Сохранить" fx:id="saveMenuItem" onAction="#save"/>
+                    <MenuItem text="Загрузить" fx:id="loadMenuItem" onAction="#load"/>
+                    <MenuItem text="Выход" onAction="#exit"/>
+                </Menu>
+                <Menu text="Шары" fx:id="ballsMenu" />
+                <Menu text="Выход" onAction="#exit" fx:id="exitMenuButton">
+                    <SeparatorMenuItem/>
+                </Menu>
 
-</AnchorPane>
+            </MenuBar>
+        </top>
+        <center>
+            <Canvas fx:id="canvas"/>
+        </center>
+        <bottom>
+            <HBox styleClass="inset-panel" fx:id="bottomBox">
+                <Label fx:id="statusLabel" />
+            </HBox>
+        </bottom>
+    </BorderPane>
+

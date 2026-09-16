@@ -1,0 +1,7 @@
+.inset-panel {
+    -fx-background-color: #f8f8f8;
+    -fx-padding: 6 8;
+
+    /* Внутренняя тень сверху — создаёт иллюзию углубления */
+    -fx-effect: innershadow(gaussian, rgba(0,0,0,0.6), 6, 0.0, 0, 1);
+}

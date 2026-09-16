@@ -1,24 +1,32 @@
-import java.util.ArrayList;
+package physics;
+
 import java.util.List;
 
 public class SimulationPhysics {
 
-    SimulationStats stats;
+    SimulationStats stats, frameStats;
     List<Ball> balls;
 
-    boolean isHighPrecision = false;
-    boolean isGravityEnabled = false;
-    boolean isReflectionEnabled = false;
-    boolean isStatsEnabled = false;
-    double boxWidth = 0;
-    double boxHeight = 0;
+    public boolean isHighPrecision = false;
+    public boolean isGravityEnabled = false;
+    public boolean isReflectionEnabled = false;
+    public boolean isStatsEnabled = false;
+    public double boxWidth = 0;
+    public double boxHeight = 0;
 
-    SimulationPhysics(List<Ball> balls, SimulationStats stats) {
-        this.stats = stats;
+    private volatile boolean cancelled = false;
+
+    public SimulationPhysics(List<Ball> balls, SimulationStats stats) {
+        this.stats = new SimulationStats(); // Эта накопительная статистика.
+        this.frameStats = stats; // Эта статистика привязанная к выводу в форму.
         this.balls = balls;
     }
 
+    /** Вызывается из UI-потока — просит физику завершиться на ближайшей проверке. */
+    public void cancel() { cancelled = true; }
+
     public void doCalc(double dt) {
+        cancelled = false;
 
         // Статистика, инициализация.
         long start = System.nanoTime();
@@ -28,26 +36,37 @@ public class SimulationPhysics {
         double dtAccumulator = 0.0, effectiveDt;
 
         while (dtAccumulator < dt) {
+            if (cancelled) { frameStats.currentPhase = Phase.CANCELLED; return; }
+
             if (isHighPrecision) {
-                effectiveDt = Math.min(getEffectiveDt(dt), dt - dtAccumulator);
+                effectiveDt = Math.min(getEffectiveDt(), dt - dtAccumulator);
             } else {
                 effectiveDt = dt;
             }
 
             // Проверка гравитации (пересчет скорости).
             if (isGravityEnabled) {
+                frameStats.currentPhase = Phase.GRAVITY;
                 ballsGravity(effectiveDt);
+                if (cancelled) { frameStats.currentPhase = Phase.CANCELLED; return; }
             }
             // Линейное смещение за dt
+            frameStats.currentPhase = Phase.SHIFT;
             ballsShift(effectiveDt);
+            if (cancelled) { frameStats.currentPhase = Phase.CANCELLED; return; }
+
             // Столкновение с клеткой.
             if (isReflectionEnabled) {
+                frameStats.currentPhase = Phase.CELL_COLLISIONS;
                 cellCollisions();
+                if (cancelled) { frameStats.currentPhase = Phase.CANCELLED; return; }
             }
 
             // 3. Попарное разрешение столкновений
+            frameStats.currentPhase = Phase.RESOLVE_COLLISIONS;
             final int iterations = 5; // количество итераций разрешения
             for (int iter = 0; iter < iterations; iter++) {
+                if (cancelled) { frameStats.currentPhase = Phase.CANCELLED; return; }
                 resolveCollisions();
             }
 
@@ -59,6 +78,9 @@ public class SimulationPhysics {
             calcStats();
             stats.physicsNanos = System.nanoTime() - start;
         }
+
+        stats.currentPhase = Phase.DONE;
+        frameStats.clone(stats);
     }
 
     private void cellCollisions() {
@@ -90,8 +112,8 @@ public class SimulationPhysics {
         stats.ballCount = balls.size();
     }
 
-    /* dt из расчета, что максимальное линейное смещение на 1пикс */
-    private double getEffectiveDt(double dt) {
+    /* dt из расчета, что максимальное линейное смещение на 1px */
+    private double getEffectiveDt() {
         double maxSpeed = balls.stream().mapToDouble(a -> a.vx * a.vx + a.vy * a.vy)
                 .max().orElse(1.0);
         maxSpeed = Math.sqrt(maxSpeed);
@@ -127,48 +149,20 @@ public class SimulationPhysics {
     }
 
     private void ballsGravity(double dt) {
-        final double G = 50000.0; // гравитационная постоянная (подберите под свой масштаб)
-        final double softening = 1.0; // смягчение, чтобы избежать сингулярности
+        final double G = 500.0;
+        final double softening = 1.0;
 
-        // 1. Обнуляем ускорения
-        for (Ball b : balls) {
-            b.ax = 0;
-            b.ay = 0;
-        }
+        final BarnesHutGravity bh = new BarnesHutGravity();
+        bh.compute(balls, G, softening);
 
-        // 2. Вычисляем гравитационные силы
-        for (int i = 0; i < balls.size(); i++) {
-            Ball a = balls.get(i);
+        // HonestGravity.compute(balls, G, softening);
 
-            for (int j = i + 1; j < balls.size(); j++) {
-                Ball b = balls.get(j);
-
-                double dx = b.x - a.x;
-                double dy = b.y - a.y;
-                double distSq = dx*dx + dy*dy + softening*softening; // смягчение
-                double dist = Math.sqrt(distSq);
-
-                // Сила (скаляр) по закону Ньютона
-                double force = G * a.mass * b.mass / distSq;
-
-                // Ускорение для a (F / mass_a) и для b (F / mass_b) с противоположными знаками
-                double ax_a = force / a.mass * (dx / dist);
-                double ay_a = force / a.mass * (dy / dist);
-                double ax_b = -force / b.mass * (dx / dist);
-                double ay_b = -force / b.mass * (dy / dist);
-
-                a.ax += ax_a;
-                a.ay += ay_a;
-                b.ax += ax_b;
-                b.ay += ay_b;
-            }
-        }
-
-        // 3. Полунеявный метод Эйлера
+        // Полунеявный метод Эйлера.
         for (Ball b : balls) {
             b.vx += b.ax * dt;
             b.vy += b.ay * dt;
         }
+
     }
 
     /* Рассчитывает коллизию шаров, вернет флаг - было ли столкновение. */

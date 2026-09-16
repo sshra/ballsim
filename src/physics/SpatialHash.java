@@ -1,6 +1,8 @@
+package physics;
+
 import java.util.*;
 
-class SpatialHash {
+public class SpatialHash {
     private final double cellSize;
     private final Map<Long, List<Ball>> cells = new HashMap<>();
 

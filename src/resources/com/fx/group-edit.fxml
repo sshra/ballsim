@@ -1,14 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
-
-<?import java.lang.*?>
-<?import java.util.*?>
-<?import javafx.scene.*?>
-<?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.geometry.Insets?>
 
-<AnchorPane xmlns="http://javafx.com/javafx"
-            xmlns:fx="http://javafx.com/fxml"
-            fx:controller="$CONTROLLER_NAME$"
-            prefHeight="400.0" prefWidth="600.0" >
+<VBox xmlns="http://javafx.com/javafx"
+      xmlns:fx="http://javafx.com/fxml"
+      fx:controller="controlles.GroupEditController"
+      spacing="10">
+    <padding><Insets top="15" right="15" bottom="15" left="15"/></padding>
 
-</AnchorPane>
+    <Label text="Имя:"/>
+    <TextField fx:id="nameField"/>
+
+    <Label text="Количество:"/>
+    <Spinner fx:id="countSpinner" editable="true"/>
+
+    <Label text="Радиус:"/>
+    <TextField fx:id="radiusField"/>
+
+    <Label text="Вес:"/>
+    <TextField fx:id="massField"/>
+
+    <Label text="Цвет:"/>
+    <ColorPicker fx:id="colorPicker"/>
+
+    <HBox spacing="10" alignment="CENTER_RIGHT">
+        <Button text="Отмена" onAction="#onCancel"/>
+        <Button text="OK" onAction="#onApply" defaultButton="true"/>
+    </HBox>
+</VBox>

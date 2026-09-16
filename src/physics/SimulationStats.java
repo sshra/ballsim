@@ -1,4 +1,10 @@
+package physics;
+
 public class SimulationStats {
+
+    /** Текущая фаза физики. volatile — пишет физический поток, читает UI. */
+    public volatile Phase currentPhase = Phase.IDLE;
+
     // Общие
     public long frameCount;
     public double fps;
@@ -18,6 +24,20 @@ public class SimulationStats {
     // Производительность
     public long physicsNanos;          // сколько времени занял updatePhysics
     public long renderNanos;
+
+    public void clone(SimulationStats s) {
+        ballCount = s.ballCount;
+        maxSpeed = s.maxSpeed;
+        avgSpeed = s.avgSpeed;
+        totalKineticEnergy = s.totalKineticEnergy;
+        totalMomentumX = s.totalMomentumX;
+        totalMomentumY = s.totalMomentumY;
+        collisionChecks = s.collisionChecks;
+        actualCollisions = s.actualCollisions;
+        iterationsUsed = s.iterationsUsed;
+        physicsNanos = s.physicsNanos;
+        renderNanos = s.renderNanos;
+    }
 
     public void reset() {
         ballCount = 0;

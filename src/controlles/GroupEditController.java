@@ -1,9 +1,12 @@
+package controlles;
+
 import javafx.fxml.FXML;
 import javafx.scene.control.ColorPicker;
 import javafx.scene.control.Spinner;
 import javafx.scene.control.SpinnerValueFactory;
 import javafx.scene.control.TextField;
 import javafx.stage.Stage;
+import physics.Group;
 
 public class GroupEditController {
     @FXML private TextField nameField;
@@ -23,7 +26,7 @@ public class GroupEditController {
 
     @FXML
     public void initialize() {
-        countSpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1, 10000, 10));
+        countSpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1, 100000, 10));
     }
 
     // Вызывается после setGroup — здесь настраиваем двустороннюю привязку
