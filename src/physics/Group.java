@@ -8,18 +8,28 @@ public class Group {
     private final IntegerProperty count = new SimpleIntegerProperty(10);
     private final DoubleProperty radius = new SimpleDoubleProperty(10.0);
     private final DoubleProperty mass = new SimpleDoubleProperty(1.0);
+    private final DoubleProperty mu = new SimpleDoubleProperty(0.0); // коэф. трения между шарами одного и того же типа
     private final ObjectProperty<Color> color = new SimpleObjectProperty<>(Color.BLUE);
 
-    public Group(int ballCount, double ballRadius, double ballMass, Color ballColor) {
-        this("Группа", ballCount, ballRadius, ballMass, ballColor);
+    public double getMu() {
+        return mu.get();
     }
 
-    public Group(String name, int ballCount, double ballRadius, double ballMass, Color ballColor) {
+    public DoubleProperty muProperty() {
+        return mu;
+    }
+
+    public Group(int ballCount, double ballRadius, double ballMass, double ballMu, Color ballColor) {
+        this("Группа", ballCount, ballRadius, ballMass, ballMu, ballColor);
+    }
+
+    public Group(String name, int ballCount, double ballRadius, double ballMass, double ballMu, Color ballColor) {
         this.name.set(name);
         count.set(ballCount);
         radius.set(ballRadius);
         mass.set(ballMass);
         color.set(ballColor);
+        mu.set(ballMu);
     }
 
     public int getCount() {

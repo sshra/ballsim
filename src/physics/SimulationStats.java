@@ -14,6 +14,7 @@ public class SimulationStats {
     public double maxSpeed;
     public double avgSpeed;
     public double totalKineticEnergy;
+    public double totalRotationalEnergy;   // суммарная вращательная энергия
     public double totalMomentumX, totalMomentumY;
 
     // Взаимодействия
@@ -30,6 +31,7 @@ public class SimulationStats {
         maxSpeed = s.maxSpeed;
         avgSpeed = s.avgSpeed;
         totalKineticEnergy = s.totalKineticEnergy;
+        totalRotationalEnergy = s.totalRotationalEnergy;
         totalMomentumX = s.totalMomentumX;
         totalMomentumY = s.totalMomentumY;
         collisionChecks = s.collisionChecks;
@@ -44,6 +46,7 @@ public class SimulationStats {
         maxSpeed = 0;
         avgSpeed = 0;
         totalKineticEnergy = 0;
+        totalRotationalEnergy = 0;
         totalMomentumX = 0;
         totalMomentumY = 0;
         collisionChecks = 0;

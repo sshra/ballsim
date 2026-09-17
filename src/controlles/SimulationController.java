@@ -34,6 +34,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 public class SimulationController {
     @FXML private BorderPane borderPane;
@@ -117,8 +119,8 @@ public class SimulationController {
         canvas.heightProperty().addListener((o, ov, nv) -> render());
 
         // начальные группы (можно добавить одну)
-        groups.add(new Group(10000, 3.0, 1.0, Color.BLUE));
-//        groups.add(new Group(1, 30.0, 1000.0, Color.RED));
+//        groups.add(new Group(10000, 3.0, 1.0, 0.0, Color.BLUE));
+        groups.add(new Group(3, 50.0, 1.0, 0.25, Color.RED));
         updateBallsFromGroups();
 
         // инициализация таймера
@@ -134,7 +136,8 @@ public class SimulationController {
                 // 2. Обновление статистики — тоже в UI-потоке, тоже под tryLock
                 if (statsToggle.isSelected()
                         && ++statsController.statsFrameCounter % statsController.STATS_UPDATE_EVERY == 0) {
-                    statsController.update(stats);   // ← здесь всё как раньше
+                    statsController.update(stats);
+                    statsStage.sizeToScene();// ← здесь всё как раньше
                 }
             }
         };
@@ -192,6 +195,7 @@ public class SimulationController {
             statsStage.initOwner(primaryStage);
             statsStage.initModality(Modality.NONE);
             statsStage.setScene(new Scene(root));
+            statsStage.sizeToScene();
             // Не показываем сразу — ждём, когда пользователь включит флаг
 
             statsStage.setOnShowing(e -> {
@@ -228,7 +232,9 @@ public class SimulationController {
             stage.setTitle(isNew ? "Новая группа" : "Редактирование группы");
             stage.initModality(Modality.NONE);          // немодальное
             stage.initOwner(primaryStage);              // остаётся поверх главного окна
-            stage.setScene(new Scene(root, 350, 400));
+            stage.setScene(new Scene(root));
+            stage.sizeToScene();
+            stage.setResizable(false);
 
             // Настраиваем контроллер формы
             controller.setGroup(group);
@@ -266,7 +272,7 @@ public class SimulationController {
 
         MenuItem addItem = new MenuItem("Добавить…");
         addItem.setOnAction(e -> {
-            Group newGroup = new Group("Группа " + (groups.size() + 1), 10, 10, 1, Color.BLUE);
+            Group newGroup = new Group("Группа " + (groups.size() + 1), 10,5, 10, 0.0, Color.BLUE);
             openGroupEditor(newGroup, true); // true = это новая группа
         });
         ballsMenu.getItems().add(addItem);
@@ -279,7 +285,7 @@ public class SimulationController {
         // для каждой группы создаём нужное количество шариков со случайными позициями
         for (Group g : groups) {
             for (int i = 0; i < g.getCount(); i++) {
-                balls.add(new Ball(width, height, g.getRadius(), g.getMass(), g.getColor()));
+                balls.add(new Ball(width, height, g.getRadius(), g.getMass(), g.getMu(), g.getColor()));
             }
         }
     }
@@ -316,6 +322,14 @@ public class SimulationController {
             if (sy + r < 0 || sy - r > canvas.getHeight()) continue;
 
             gc.fillOval(sx - r,sy - r,2 * r, 2 * r);
+
+            if (b.omega != 0.0) {            // Спица — метка вращения
+                gc.setStroke(Color.WHITE);
+                gc.setLineWidth(1.5);
+                double cos = Math.cos(b.angle);
+                double sin = Math.sin(b.angle);
+                gc.strokeLine(sx, sy, sx + r * cos, sy + r * sin);
+            }
         }
     }
 
@@ -527,8 +541,10 @@ public class SimulationController {
         s.camY = camY;
 
         try (ObjectOutputStream out =
-                     new ObjectOutputStream(new BufferedOutputStream(
-                             new FileOutputStream(file)))) {
+                     new ObjectOutputStream(
+                             new GZIPOutputStream(
+                             new BufferedOutputStream(
+                             new FileOutputStream(file))))) {
 
             out.writeObject(s);
             // Status bar / диалог об успехе
@@ -569,8 +585,10 @@ public class SimulationController {
         );
 
         try (ObjectInputStream in =
-                     new ObjectInputStream(new BufferedInputStream(
-                             new FileInputStream(file)))) {
+                     new ObjectInputStream(
+                             new GZIPInputStream(
+                             new BufferedInputStream(
+                             new FileInputStream(file))))) {
             in.setObjectInputFilter(combined);
 
             Object obj = in.readObject();
@@ -590,14 +608,14 @@ public class SimulationController {
         // Восстанавливаем группы
         groups.clear();
         for (SimulationSnapshot.GroupData d : s.groups) {
-            Group g = new Group(d.name, d.count, d.radius, d.mass, SimulationSnapshot.fromArgb(d.colorArgb));
+            Group g = new Group(d.name, d.count, d.radius, d.mass, d.mu, SimulationSnapshot.fromArgb(d.colorArgb));
             groups.add(g);
         }
 
         // Восстанавливаем шары в точности
         balls.clear();
         for (SimulationSnapshot.BallData d : s.balls) {
-            Ball b = new Ball(d.x, d.y, d.vx, d.vy, d.radius, d.mass, SimulationSnapshot.fromArgb(d.colorArgb));
+            Ball b = new Ball(d.x, d.y, d.vx, d.vy, d.radius, d.mass, d.mu, d.omega, d.angle, SimulationSnapshot.fromArgb(d.colorArgb));
             balls.add(b);
         }
 

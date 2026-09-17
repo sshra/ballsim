@@ -7,7 +7,7 @@
           xmlns:fx="http://javafx.com/fxml"
           fx:controller="controlles.StatsWindowController"
           hgap="12" vgap="6"
-          prefWidth="300">
+          >
     <padding><Insets top="12" right="16" bottom="12" left="16"/></padding>
 
     <Label text="FPS:"           GridPane.columnIndex="0" GridPane.rowIndex="0"/>
@@ -28,12 +28,18 @@
     <Label text="Кин. энергия:"   GridPane.columnIndex="0" GridPane.rowIndex="5"/>
     <Label fx:id="energyLabel"    GridPane.columnIndex="1" GridPane.rowIndex="5"/>
 
-    <Label text="Проверок пар:"   GridPane.columnIndex="0" GridPane.rowIndex="6"/>
-    <Label fx:id="checksLabel"    GridPane.columnIndex="1" GridPane.rowIndex="6"/>
+    <Label text="Вращат. энергия:" GridPane.columnIndex="0" GridPane.rowIndex="6"/>
+    <Label fx:id="rotEnergyLabel"  GridPane.columnIndex="1" GridPane.rowIndex="6"/>
 
-    <Label text="Столкновений:"   GridPane.columnIndex="0" GridPane.rowIndex="7"/>
-    <Label fx:id="collisionsLabel" GridPane.columnIndex="1" GridPane.rowIndex="7"/>
+    <Label text="Полная энергия:"  GridPane.columnIndex="0" GridPane.rowIndex="7"/>
+    <Label fx:id="totalEnergyLabel" GridPane.columnIndex="1" GridPane.rowIndex="7"/>
 
-    <Label text="Физика:"         GridPane.columnIndex="0" GridPane.rowIndex="8"/>
-    <Label fx:id="physicsLabel"   GridPane.columnIndex="1" GridPane.rowIndex="8"/>
+    <Label text="Проверок пар:"   GridPane.columnIndex="0" GridPane.rowIndex="8"/>
+    <Label fx:id="checksLabel"    GridPane.columnIndex="1" GridPane.rowIndex="8"/>
+
+    <Label text="Столкновений:"   GridPane.columnIndex="0" GridPane.rowIndex="9"/>
+    <Label fx:id="collisionsLabel" GridPane.columnIndex="1" GridPane.rowIndex="9"/>
+
+    <Label text="Физика:"         GridPane.columnIndex="0" GridPane.rowIndex="10"/>
+    <Label fx:id="physicsLabel"   GridPane.columnIndex="1" GridPane.rowIndex="10"/>
 </GridPane>

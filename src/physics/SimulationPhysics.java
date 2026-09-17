@@ -4,6 +4,14 @@ import java.util.List;
 
 public class SimulationPhysics {
 
+    /** Коэффициент для момента инерции: 0.5 для диска, 1.0 для обруча, 0.4 для сферы. */
+    private static final double INERTIA_COEFFICIENT = 0.5;
+
+    /** Момент инерции шара. */
+    private static double inertia(Ball b) {
+        return INERTIA_COEFFICIENT * b.mass * b.radius * b.radius;
+    }
+
     SimulationStats stats, frameStats;
     List<Ball> balls;
 
@@ -95,18 +103,22 @@ public class SimulationPhysics {
 
     private void calcStats() {
         // Подсчёт скоростей и энергии — один проход по шарам в конце
-        double maxSpeed = 0, sumSpeed = 0, ke = 0, px = 0, py = 0;
+        double maxSpeed = 0, sumSpeed = 0, ke = 0, re = 0, px = 0, py = 0;
         for (Ball b : balls) {
             double speed = Math.hypot(b.vx, b.vy);
             if (speed > maxSpeed) maxSpeed = speed;
             sumSpeed += speed;
             ke += 0.5 * b.mass * speed * speed;
+            // Вращательная кинетическая энергия
+            double I = inertia(b);
+            re += 0.5 * I * b.omega * b.omega;
             px += b.mass * b.vx;
             py += b.mass * b.vy;
         }
         stats.maxSpeed = maxSpeed;
         stats.avgSpeed = balls.isEmpty() ? 0 : sumSpeed / balls.size();
         stats.totalKineticEnergy = ke;
+        stats.totalRotationalEnergy = re;
         stats.totalMomentumX = px;
         stats.totalMomentumY = py;
         stats.ballCount = balls.size();
@@ -145,6 +157,8 @@ public class SimulationPhysics {
         for (Ball b : balls) {
             b.x += b.vx * dt;
             b.y += b.vy * dt;
+            if (b.omega != 0.0)
+                b.angle += b.omega * dt;   // ← вращение
         }
     }
 
@@ -198,16 +212,57 @@ public class SimulationPhysics {
         double relVn = dvx * nx + dvy * ny;
 
         // Если шары уже разлетаются, ничего не делаем
-        //        if (relVn > 0) return;
+        // if (relVn <= 0) return false;
 
         // Импульс (скаляр) для упругого удара
-        double impulse = -(2 * relVn) / (1/a.mass + 1/b.mass);
+        double invMassA = 1.0 / a.mass;
+        double invMassB = 1.0 / b.mass;
+        double invMassSum = invMassA + invMassB;
+
+        // нормальный импульс
+        double Jn = -(2 * relVn) / (invMassSum);
 
         // Применяем импульс к скоростям
-        a.vx += (impulse / a.mass) * nx;
-        a.vy += (impulse / a.mass) * ny;
-        b.vx -= (impulse / b.mass) * nx;
-        b.vy -= (impulse / b.mass) * ny;
+        a.vx += (Jn * invMassA) * nx;
+        a.vy += (Jn * invMassA) * ny;
+        b.vx -= (Jn * invMassB) * nx;
+        b.vy -= (Jn * invMassB) * ny;
+
+        // --- Ранний выход, если трение отсутствует ---
+        // арифметическая модель коэф. трения
+        double mu = 0.5 * (a.mu + b.mu);
+        if (mu <= 0.0) return true;
+
+        // --- Касательный импульс (только если mu > 0) ---
+        double tx = -ny;
+        double ty = nx;
+
+        // Относительная касательная скорость точки контакта a относительно b.
+        // Вклад вращения: +ω_a·r_a и +ω_b·r_b (знаки выведены из r_contact).
+        double relVt = (a.vx - b.vx) * tx + (a.vy - b.vy) * ty
+                + a.omega * a.radius + b.omega * b.radius;
+
+        double invInertiaA = 1.0 / inertia(a);
+        double invInertiaB = 1.0 / inertia(b);
+        double denom = invMassSum
+                + a.radius * a.radius * invInertiaA
+                + b.radius * b.radius * invInertiaB;
+
+        // Ограничение Кулона: |J_t| ≤ μ·|J_n|
+        double JtStop = -relVt / denom;
+        double JtMax = mu * Math.abs(Jn); // Jn > 0 здесь
+        double Jt = Math.max(-JtMax, Math.min(JtMax, JtStop));
+
+        // Применяем касательный импульс к скоростям
+        a.vx += (Jt * invMassA) * tx;
+        a.vy += (Jt * invMassA) * ty;
+        b.vx -= (Jt * invMassB) * tx;
+        b.vy -= (Jt * invMassB) * ty;
+
+        // Применяем момент к угловым скоростям
+        // τ_a = +r_a·J_t, τ_b = +r_b·J_t (знаки выведены из r_contact)
+        a.omega += (a.radius * Jt) * invInertiaA;
+        b.omega += (b.radius * Jt) * invInertiaB;
 
         return true;
     }

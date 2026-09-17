@@ -1,10 +1,7 @@
 package controlles;
 
 import javafx.fxml.FXML;
-import javafx.scene.control.ColorPicker;
-import javafx.scene.control.Spinner;
-import javafx.scene.control.SpinnerValueFactory;
-import javafx.scene.control.TextField;
+import javafx.scene.control.*;
 import javafx.stage.Stage;
 import physics.Group;
 
@@ -14,6 +11,8 @@ public class GroupEditController {
     @FXML private TextField radiusField;
     @FXML private TextField massField;
     @FXML private ColorPicker colorPicker;
+    @FXML private Slider muSlider;
+    @FXML private Label muValueLabel;
 
     private Group group;
     private SimulationController simulationController;
@@ -48,6 +47,17 @@ public class GroupEditController {
         massField.textProperty().addListener((obs, o, n) -> {
             try { group.setMass(Double.parseDouble(n)); } catch (NumberFormatException ignored) {}
         });
+
+        // слайдер выбора коэф трения
+        muSlider.valueProperty().bindBidirectional(group.muProperty());
+
+        // Обновление метки при изменении значения
+        muSlider.valueProperty().addListener((obs, oldV, newV) -> {
+            muValueLabel.setText(String.format("%.2f", newV.doubleValue()));
+        });
+
+        // Начальная установка метки
+        muValueLabel.setText(String.format("%.2f", muSlider.getValue()));
     }
 
     /** Нужно вызвать после setGroup, например из openGroupEditor. */

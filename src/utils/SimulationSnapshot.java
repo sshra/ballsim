@@ -32,6 +32,7 @@ public class SimulationSnapshot implements Serializable {
         private static final long serialVersionUID = 1L;
         public double x, y, vx, vy;
         public double radius, mass;
+        public double mu, omega, angle;
         public int colorArgb; // цвет как ARGB
     }
 
@@ -40,8 +41,24 @@ public class SimulationSnapshot implements Serializable {
         private static final long serialVersionUID = 1L;
         public String name;
         public int count;
-        public double radius, mass;
+        public double radius, mass, mu;
         public int colorArgb;
+    }
+
+    public void fromSnapshot (List<Ball> balls, List<Group> groups) {
+        // Восстанавливаем группы
+        groups.clear();
+        for (SimulationSnapshot.GroupData d : this.groups) {
+            Group g = new Group(d.name, d.count, d.radius, d.mass, d.mu, SimulationSnapshot.fromArgb(d.colorArgb));
+            groups.add(g);
+        }
+
+        // Восстанавливаем шары в точности
+        balls.clear();
+        for (SimulationSnapshot.BallData d : this.balls) {
+            Ball b = new Ball(d.x, d.y, d.vx, d.vy, d.radius, d.mass, d.mu, d.omega, d.angle, SimulationSnapshot.fromArgb(d.colorArgb));
+            balls.add(b);
+        }
     }
 
     public static SimulationSnapshot toSnapshot(List<Ball> balls, List<Group> groups) {
@@ -53,6 +70,9 @@ public class SimulationSnapshot implements Serializable {
             d.vx = b.vx; d.vy = b.vy;
             d.radius = b.radius;
             d.mass = b.mass;
+            d.angle = b.angle;
+            d.mu = b.mu;
+            d.omega = b.omega;
             d.colorArgb = toArgb(b.getColor());
             return d;
         }).collect(Collectors.toList());
@@ -63,6 +83,7 @@ public class SimulationSnapshot implements Serializable {
             d.count = g.getCount();
             d.radius = g.getRadius();
             d.mass = g.getMass();
+            d.mu = g.getMu();
             d.colorArgb = toArgb(g.getColor());
             return d;
         }).collect(Collectors.toList());
