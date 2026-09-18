@@ -19,6 +19,7 @@ public class SimulationPhysics {
     public boolean isGravityEnabled = false;
     public boolean isReflectionEnabled = false;
     public boolean isStatsEnabled = false;
+    public boolean isNonLoseFriction = true; // трение без потерь
     public double boxWidth = 0;
     public double boxHeight = 0;
 
@@ -248,10 +249,16 @@ public class SimulationPhysics {
                 + a.radius * a.radius * invInertiaA
                 + b.radius * b.radius * invInertiaB;
 
-        // Ограничение Кулона: |J_t| ≤ μ·|J_n|
-        double JtStop = -relVt / denom;
-        double JtMax = mu * Math.abs(Jn); // Jn > 0 здесь
-        double Jt = Math.max(-JtMax, Math.min(JtMax, JtStop));
+        double Jt;
+        if (isNonLoseFriction) {
+            final double e_t = 1.0;
+            Jt = -(1.0 + e_t) * relVt / denom;
+        } else {
+            // Ограничение Кулона: |J_t| ≤ μ·|J_n|
+            double JtStop = -relVt / denom;
+            double JtMax = mu * Math.abs(Jn); // Jn > 0 здесь
+            Jt = Math.max(-JtMax, Math.min(JtMax, JtStop));
+        }
 
         // Применяем касательный импульс к скоростям
         a.vx += (Jt * invMassA) * tx;

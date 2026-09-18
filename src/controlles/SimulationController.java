@@ -49,6 +49,7 @@ public class SimulationController {
     @FXML private CheckMenuItem gravityToggle;
     @FXML private CheckMenuItem reflectionToggle;
     @FXML private CheckMenuItem highPrecisionToggle;
+    @FXML private CheckMenuItem nonLoseFriction;
     @FXML private CheckMenuItem statsToggle;
 
     @FXML private Menu ballsMenu;
@@ -119,8 +120,8 @@ public class SimulationController {
         canvas.heightProperty().addListener((o, ov, nv) -> render());
 
         // начальные группы (можно добавить одну)
-//        groups.add(new Group(10000, 3.0, 1.0, 0.0, Color.BLUE));
-        groups.add(new Group(3, 50.0, 1.0, 0.25, Color.RED));
+        groups.add(new Group(10000, 3.0, 1.0, 0.0, Color.BLUE));
+//        groups.add(new Group(3, 50.0, 1.0, 0.25, Color.RED));
         updateBallsFromGroups();
 
         // инициализация таймера
@@ -298,6 +299,7 @@ public class SimulationController {
         physics.isGravityEnabled = gravityToggle.isSelected();
         physics.isReflectionEnabled = reflectionToggle.isSelected();
         physics.isStatsEnabled = statsToggle.isSelected();
+        physics.isNonLoseFriction = nonLoseFriction.isSelected();
 
         physics.boxHeight = canvas.getHeight();
         physics.boxWidth = canvas.getWidth();
@@ -366,7 +368,7 @@ public class SimulationController {
         // Сброс фазы — чтобы UI не показывал старую
         stats.currentPhase = Phase.IDLE;
 
-        // Блокируем меню сразу — это безопасно и ожидаемо
+        // Блокируем некоторые пункты меню.
         saveMenuItem.setDisable(true);
         loadMenuItem.setDisable(true);
         updateMenuItem.setDisable(true);
@@ -378,7 +380,7 @@ public class SimulationController {
         physicsThread.setDaemon(true);
         physicsThread.start();
 
-        // Обновление статуса фазы во время работы — опционально
+        // Обновление статуса фазы во время работы
         startPhasePolling();
     }
 
@@ -535,6 +537,8 @@ public class SimulationController {
         s.isHighPrecision= highPrecisionToggle.isSelected();
         s.isReflectionEnabled = reflectionToggle.isSelected();
         s.isStatsEnabled = statsToggle.isSelected();
+        s.isNonLoseFriction = nonLoseFriction.isSelected();
+
         s.boxWidth = canvas.getWidth();
         s.boxHeight = canvas.getHeight();
         s.camX = camX;
@@ -624,6 +628,7 @@ public class SimulationController {
         highPrecisionToggle.setSelected(s.isHighPrecision);
         reflectionToggle.setSelected(s.isReflectionEnabled);
         statsToggle.setSelected(s.isStatsEnabled);
+        nonLoseFriction.setSelected(s.isNonLoseFriction);
         toggleStats();
 
         var stage = borderPane.getScene().getWindow();

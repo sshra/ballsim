@@ -16,6 +16,7 @@
                     <MenuItem text="Обновить" fx:id="updateMenuItem" onAction="#updateBallsFromGroups"/>
                     <CheckMenuItem text="Высокая точность" fx:id="highPrecisionToggle"/>
                     <CheckMenuItem text="Гравитация" fx:id="gravityToggle" onAction="#toggleGravity"/>
+                    <CheckMenuItem text="Трение без потерь" fx:id="nonLoseFriction" selected="true"/>
                     <CheckMenuItem text="Отражение от стенок" fx:id="reflectionToggle" onAction="#toggleReflection" selected="true"/>
                     <CheckMenuItem text="Показывать статистику"
                                    fx:id="statsToggle"

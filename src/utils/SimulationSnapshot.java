@@ -21,6 +21,7 @@ public class SimulationSnapshot implements Serializable {
     public boolean isGravityEnabled = false;
     public boolean isReflectionEnabled = false;
     public boolean isStatsEnabled = false;
+    public boolean isNonLoseFriction = true;
     public double boxWidth = 0;
     public double boxHeight = 0;
 
