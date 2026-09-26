@@ -187,7 +187,7 @@ public class SimulationController {
     private void initStatsWindow() {
         try {
             FXMLLoader loader = new FXMLLoader(
-                    getClass().getResource("/resources/com/fx/stats-window.fxml"));
+                    getClass().getResource("/com/fx/stats-window.fxml"));
             Parent root = loader.load();
             statsController = loader.getController();
 
@@ -224,7 +224,7 @@ public class SimulationController {
         }
 
         try {
-            FXMLLoader loader = new FXMLLoader(getClass().getResource("/resources/com/fx/group-edit.fxml"));
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/com/fx/group-edit.fxml"));
             Parent root = loader.load();
 
             GroupEditController controller = loader.getController();

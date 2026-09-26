@@ -1,0 +1,6 @@
+Manifest-Version: 1.0
+Main-Class: Main
+Class-Path: javafx.controls.jar javafx.base.jar javafx.fxml.jar javafx.g
+ raphics.jar kotlin-stdlib-jdk8-2.1.21.jar kotlin-stdlib-2.1.21.jar anno
+ tations-13.0.jar kotlin-stdlib-jdk7-2.1.21.jar
+

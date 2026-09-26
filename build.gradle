@@ -1,0 +1,62 @@
+plugins {
+    id 'java'
+    id 'application' // Добавит задачу 'run' для запуска
+    id 'org.openjfx.javafxplugin' version '0.1.0' // Плагин для JavaFX
+    // Плагин Shadow — именно он создаёт "толстый" JAR (fat JAR)
+    id 'com.gradleup.shadow' version '9.3.0' // <-- Изменено
+}
+
+group = 'com.Shra.ballsim' // Ваш group id
+version = '1.0.0'
+
+javafx {
+    version = '25' //
+    modules = ['javafx.controls', 'javafx.fxml']
+}
+
+java {
+    toolchain {
+        // Указываем Java 25 для компиляции, как мы обсуждали
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+tasks.withType(ProcessResources).configureEach {
+    filteringCharset = 'UTF-8'
+}
+
+// Укажите ваш главный класс
+application {
+    mainClass = 'Launcher'
+}
+
+sourceSets {
+    main {
+        java.srcDirs = ['src'] // Если исходники лежат просто в 'src'
+        resources.srcDirs = ['src/resources'] // Если ресурсы лежат вместе с исходниками
+    }
+}
+
+// fat JAR
+shadowJar {
+    archiveBaseName.set('ballsim')
+    archiveClassifier.set('')     
+    archiveVersion.set('1.0.0')
+
+    manifest {
+        attributes 'Main-Class': 'Launcher'
+    }
+
+    mergeServiceFiles()
+}
+
+tasks.named('build') {
+    dependsOn tasks.named('shadowJar')
+}

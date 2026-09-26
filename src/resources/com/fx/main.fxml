@@ -8,7 +8,7 @@
             fx:id="borderPane"
             xmlns:fx="http://javafx.com/fxml"
             xmlns="http://javafx.com/javafx"
-            stylesheets="/resources/style.css">
+            stylesheets="/style.css">
         <top >
             <MenuBar fx:id="menuBar">
                 <Menu text="Симуляция">

@@ -36,6 +36,6 @@ public class SpatialHash {
     private long hash(int x, int y) {
         // Используем большие простые числа из статьи
         // Teschner et al., 2003 («Optimized Spatial Hashing for Collision Detection of Deformable Objects»).
-        return (long) x * 73856093L ^ (long) y * 19349663L;
+        return (long) x * 73856093L ^ (long) y * 83492791L;
     }
 }
