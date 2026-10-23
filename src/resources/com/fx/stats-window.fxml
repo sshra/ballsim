@@ -13,9 +13,6 @@
     <Label text="FPS:"           GridPane.columnIndex="0" GridPane.rowIndex="0"/>
     <Label fx:id="fpsLabel"      GridPane.columnIndex="1" GridPane.rowIndex="0"/>
 
-    <Label text="Кадров:"        GridPane.columnIndex="0" GridPane.rowIndex="1"/>
-    <Label fx:id="frameLabel"    GridPane.columnIndex="1" GridPane.rowIndex="1"/>
-
     <Label text="Шаров:"         GridPane.columnIndex="0" GridPane.rowIndex="2"/>
     <Label fx:id="ballCountLabel" GridPane.columnIndex="1" GridPane.rowIndex="2"/>
 

@@ -16,8 +16,7 @@ public class StatsWindowController {
 
     /** Вызывается из AnimationTimer с троттлингом. */
     public void update(SimulationStats s) {
-        fpsLabel.setText(String.format("%.1f", s.fps));
-        frameLabel.setText(Long.toString(s.frameCount));
+        fpsLabel.setText(String.format("%.5f", s.fps));
         ballCountLabel.setText(String.format("%,d", s.ballCount));
         maxSpeedLabel.setText(String.format("%,.1f", s.maxSpeed));
         avgSpeedLabel.setText(String.format("%,.1f", s.avgSpeed));

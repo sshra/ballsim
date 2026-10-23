@@ -1,6 +1,10 @@
 package physics;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class SimulationPhysics {
 
@@ -27,6 +31,7 @@ public class SimulationPhysics {
 
     public SimulationPhysics(List<Ball> balls, SimulationStats stats) {
         this.stats = new SimulationStats(); // Эта накопительная статистика.
+        this.stats.setTime(stats.getTime());
         this.frameStats = stats; // Эта статистика привязанная к выводу в форму.
         this.balls = balls;
     }
@@ -38,7 +43,6 @@ public class SimulationPhysics {
         cancelled = false;
 
         // Статистика, инициализация.
-        long start = System.nanoTime();
         stats.reset();
 
         // Точность расчетов.
@@ -85,7 +89,6 @@ public class SimulationPhysics {
         // Подсчет статистики.
         if (isStatsEnabled) {
             calcStats();
-            stats.physicsNanos = System.nanoTime() - start;
         }
 
         stats.currentPhase = Phase.DONE;
@@ -103,6 +106,7 @@ public class SimulationPhysics {
     }
 
     private void calcStats() {
+        stats.measureFrameTime();
         // Подсчёт скоростей и энергии — один проход по шарам в конце
         double maxSpeed = 0, sumSpeed = 0, ke = 0, re = 0, px = 0, py = 0;
         for (Ball b : balls) {
@@ -123,6 +127,8 @@ public class SimulationPhysics {
         stats.totalMomentumX = px;
         stats.totalMomentumY = py;
         stats.ballCount = balls.size();
+
+        stats.calcFPS();
     }
 
     /* dt из расчета, что максимальное линейное смещение на 1px */
@@ -139,19 +145,24 @@ public class SimulationPhysics {
 
         SpatialHash grid = new SpatialHash(2 * maxRadius);
         for (Ball a : balls) grid.insert(a);
-        int checkCount = 0, collisionCount = 0;
+        int checkCount = 0;
+        AtomicInteger collisionCount = new AtomicInteger();
+
+        ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
 
         for (Ball a: balls) {
             for (Ball b : grid.getNeighbors(a)) {
                 if (a.hashCode() < b.hashCode()) { // чтобы не проверять пару дважды
-                    collisionCount += resolveCollision(a, b) ? 1 : 0;
+/*                    CompletableFuture.supplyAsync(() -> resolveCollision(a, b), executor)
+                            .thenAccept(res -> collisionCount.addAndGet(res ? 1 : 0));*/
+                    collisionCount.addAndGet(resolveCollision(a, b) ? 1 : 0);
                     checkCount++;
                 }
             }
         }
-
+        executor.shutdown();
         stats.collisionChecks += checkCount;
-        stats.actualCollisions += collisionCount;
+        stats.actualCollisions += collisionCount.get();
     }
 
     private void ballsShift(double dt) {

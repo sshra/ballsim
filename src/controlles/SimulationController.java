@@ -307,6 +307,7 @@ public class SimulationController {
         currentPhysics = physics;
         try {
             physics.doCalc(dt);
+            stats.addTimePoint();
         } finally {
             currentPhysics = null;
         }

@@ -1,12 +1,14 @@
 package physics;
 
+import java.time.Instant;
+import java.util.LinkedList;
+
 public class SimulationStats {
 
     /** Текущая фаза физики. volatile — пишет физический поток, читает UI. */
     public volatile Phase currentPhase = Phase.IDLE;
 
     // Общие
-    public long frameCount;
     public double fps;
 
     // Шары
@@ -23,8 +25,11 @@ public class SimulationStats {
     public int iterationsUsed;         // сколько итераций разрешения понадобилось
 
     // Производительность
+    final static int TIME_POINTS = 10;
     public long physicsNanos;          // сколько времени занял updatePhysics
     public long renderNanos;
+    private LinkedList<Instant> time = new LinkedList<Instant>();
+    private long startTimePoint;
 
     public void clone(SimulationStats s) {
         ballCount = s.ballCount;
@@ -39,9 +44,29 @@ public class SimulationStats {
         iterationsUsed = s.iterationsUsed;
         physicsNanos = s.physicsNanos;
         renderNanos = s.renderNanos;
+        fps = s.fps;
+        time = s.time;
+    }
+
+    public void addTimePoint() {
+        time.add(Instant.now());
+        if (time.size() > TIME_POINTS) {
+            time.removeFirst();
+        }
+    }
+
+    public void calcFPS() {
+        if (time.size() > 1) {
+            fps = 1 / (((double) time.getLast().toEpochMilli() - time.getFirst().toEpochMilli()) / (time.size() - 1) / 1000);
+        }
+    }
+
+    public void measureFrameTime() {
+        physicsNanos = System.nanoTime() - startTimePoint;
     }
 
     public void reset() {
+        startTimePoint = System.nanoTime();
         ballCount = 0;
         maxSpeed = 0;
         avgSpeed = 0;
@@ -54,5 +79,13 @@ public class SimulationStats {
         iterationsUsed = 0;
         physicsNanos = 0;
         renderNanos = 0;
+    }
+
+    public void setTime(LinkedList<Instant> time) {
+        this.time = time;
+    }
+
+    public LinkedList<Instant> getTime() {
+        return this.time;
     }
 }
